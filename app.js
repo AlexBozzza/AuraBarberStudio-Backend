@@ -1,3 +1,4 @@
+
 const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
@@ -36,17 +37,28 @@ app.use(
     })
 );
 
+// Orígenes autorizados para acceder a la API
+const allowedOrigins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "https://aura-barber-studio-frontend.vercel.app"
+];
+
 app.use(
     cors({
-        origin:
-            process.env.NODE_ENV === "production"
-                ? []
-                : [
-                    "http://localhost:5173",
-                    "http://127.0.0.1:5173",
-                    "http://localhost:3000",
-                    "http://localhost:3001"
-                ],
+        origin: (origin, callback) => {
+            // Permitir peticiones sin Origin, por ejemplo,
+            // algunas solicitudes entre servidores.
+            if (!origin || allowedOrigins.includes(origin)) {
+                return callback(null, true);
+            }
+
+            return callback(
+                new Error(`Origen no permitido por CORS: ${origin}`)
+            );
+        },
 
         credentials: true,
 
@@ -76,7 +88,6 @@ app.use(validateJSON);
 
 if (process.env.NODE_ENV !== "production") {
     app.use((req, res, next) => {
-
         console.log(
             `${new Date().toISOString()} - ${req.method} ${req.url}`
         );
@@ -90,14 +101,12 @@ if (process.env.NODE_ENV !== "production") {
 ============================== */
 
 app.get("/", (req, res) => {
-
     res.status(200).json({
         success: true,
         message: "API Aura Barber Studio funcionando correctamente",
         version: "1.0.0",
         timestamp: new Date().toISOString()
     });
-
 });
 
 /* ==============================
@@ -105,13 +114,10 @@ app.get("/", (req, res) => {
 ============================== */
 
 app.get("/health", async (req, res) => {
-
     try {
-
         const dbConnected = await testConnection();
 
         res.status(dbConnected ? 200 : 503).json({
-
             success: dbConnected,
 
             status: dbConnected
@@ -119,33 +125,22 @@ app.get("/health", async (req, res) => {
                 : "unhealthy",
 
             services: {
-
                 database: dbConnected
                     ? "connected"
                     : "disconnected",
 
                 server: "running"
-
             },
 
             timestamp: new Date().toISOString()
-
         });
-
     } catch (error) {
-
         res.status(503).json({
-
             success: false,
-
             status: "unhealthy",
-
             error: error.message
-
         });
-
     }
-
 });
 
 /* ==============================
@@ -187,42 +182,23 @@ app.use(
 ============================== */
 
 app.get("/docs", (req, res) => {
-
     res.status(200).json({
-
         success: true,
-
         name: "Aura Barber Studio API",
-
         version: "1.0.0",
 
         baseUrl:
             `${req.protocol}://${req.get("host")}${API_PREFIX}`,
 
         endpoints: {
-
-            users:
-                `${API_PREFIX}/users`,
-
-            auth:
-                `${API_PREFIX}/auth`,
-
-            appointments:
-                `${API_PREFIX}/appointments`,
-
-            services:
-                `${API_PREFIX}/services`,
-
-            barbers:
-                `${API_PREFIX}/barbers`,
-
-            health:
-                "/health"
-
+            users: `${API_PREFIX}/users`,
+            auth: `${API_PREFIX}/auth`,
+            appointments: `${API_PREFIX}/appointments`,
+            services: `${API_PREFIX}/services`,
+            barbers: `${API_PREFIX}/barbers`,
+            health: "/health"
         }
-
     });
-
 });
 
 /* ==============================
@@ -230,17 +206,11 @@ app.get("/docs", (req, res) => {
 ============================== */
 
 app.use((req, res) => {
-
     res.status(404).json({
-
         success: false,
-
         message: "Ruta no encontrada",
-
         requestedUrl: req.originalUrl
-
     });
-
 });
 
 /* ==============================
@@ -248,37 +218,24 @@ app.use((req, res) => {
 ============================== */
 
 app.use((err, req, res, next) => {
-
     console.error("Error global:", err);
 
     if (err.type === "entity.parse.failed") {
-
         return res.status(400).json({
-
             success: false,
-
             message: "JSON malformado"
-
         });
-
     }
 
     if (err.type === "entity.too.large") {
-
         return res.status(413).json({
-
             success: false,
-
             message: "Payload demasiado grande"
-
         });
-
     }
 
     res.status(err.status || 500).json({
-
         success: false,
-
         message: "Error interno del servidor",
 
         error:
@@ -287,9 +244,7 @@ app.use((err, req, res, next) => {
                 : err.message,
 
         timestamp: new Date().toISOString()
-
     });
-
 });
 
 /* ==============================
@@ -297,28 +252,22 @@ app.use((err, req, res, next) => {
 ============================== */
 
 const initializeApp = async () => {
-
     try {
-
         console.log(
             "🔍 Verificando conexión a la base de datos..."
         );
 
-        const dbConnected =
-            await testConnection();
+        const dbConnected = await testConnection();
 
         if (!dbConnected) {
-
             console.error(
                 "❌ No se pudo conectar a MySQL"
             );
 
             process.exit(1);
-
         }
 
         const server = app.listen(PORT, () => {
-
             console.log(
                 "🚀 Servidor Aura Barber Studio iniciado"
             );
@@ -334,38 +283,24 @@ const initializeApp = async () => {
             console.log(
                 `💚 Health: http://localhost:${PORT}/health`
             );
-
         });
 
         process.on("SIGINT", () => {
-
-            console.log(
-                "\n🛑 Cerrando servidor..."
-            );
+            console.log("\n🛑 Cerrando servidor...");
 
             server.close(() => {
-
-                console.log(
-                    "✅ Servidor cerrado"
-                );
-
+                console.log("✅ Servidor cerrado");
                 process.exit(0);
-
             });
-
         });
-
     } catch (error) {
-
         console.error(
             "❌ Error al iniciar la aplicación:",
             error.message
         );
 
         process.exit(1);
-
     }
-
 };
 
 if (require.main === module) {
