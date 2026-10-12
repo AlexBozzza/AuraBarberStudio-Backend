@@ -1,223 +1,287 @@
+
 const Service = require("../models/Service");
 
-
-// ✅ LISTAR TODOS LOS SERVICIOS
+// ==========================================
+// LISTAR TODOS LOS SERVICIOS
+// ==========================================
 exports.getServices = async (req, res) => {
-  try {
-    const rows = await Service.getAll();
+    try {
+        const rows = await Service.getAll();
 
-    res.json({
-      success: true,
-      data: rows,
-    });
+        return res.status(200).json({
+            success: true,
+            data: rows,
+        });
+    } catch (err) {
+        console.error("Error al obtener servicios:", err);
 
-  } catch (err) {
-    console.error("Error al obtener servicios:", err);
-
-    res.status(500).json({
-      success: false,
-      error: "Error al obtener servicios",
-    });
-  }
+        return res.status(500).json({
+            success: false,
+            error: "Error al obtener servicios",
+        });
+    }
 };
 
-
-// ✅ LISTAR SOLO SERVICIOS ACTIVOS
+// ==========================================
+// LISTAR SOLO SERVICIOS ACTIVOS
+// ==========================================
 exports.getActiveServices = async (req, res) => {
-  try {
-    const rows = await Service.findAllActive();
+    try {
+        const rows = await Service.findAllActive();
 
-    res.json({
-      success: true,
-      data: rows,
-    });
+        return res.status(200).json({
+            success: true,
+            data: rows,
+        });
+    } catch (err) {
+        console.error("Error al obtener servicios activos:", err);
 
-  } catch (err) {
-    console.error("Error al obtener servicios activos:", err);
-
-    res.status(500).json({
-      success: false,
-      error: "Error al obtener servicios activos",
-    });
-  }
+        return res.status(500).json({
+            success: false,
+            error: "Error al obtener servicios activos",
+        });
+    }
 };
 
-
-// ✅ OBTENER SERVICIO POR ID
+// ==========================================
+// OBTENER SERVICIO POR ID
+// ==========================================
 exports.getServiceById = async (req, res) => {
-  try {
-    const { id } = req.params;
+    try {
+        const { id } = req.params;
 
-    const service = await Service.findById(id);
+        const service = await Service.findById(id);
 
-    if (!service) {
-      return res.status(404).json({
-        success: false,
-        error: "Servicio no encontrado",
-      });
+        if (!service) {
+            return res.status(404).json({
+                success: false,
+                error: "Servicio no encontrado",
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: service,
+        });
+    } catch (err) {
+        console.error("Error al obtener servicio:", err);
+
+        return res.status(500).json({
+            success: false,
+            error: "Error al obtener servicio",
+        });
     }
-
-    res.json({
-      success: true,
-      data: service,
-    });
-
-  } catch (err) {
-    console.error("Error al obtener servicio:", err);
-
-    res.status(500).json({
-      success: false,
-      error: "Error al obtener servicio",
-    });
-  }
 };
 
-
-// ✅ CREAR SERVICIO
+// ==========================================
+// CREAR SERVICIO
+// ==========================================
 exports.createService = async (req, res) => {
-  try {
-    const result = await Service.create(req.body);
+    try {
+        const {
+            name,
+            description,
+            duration,
+            price,
+            image,
+            barber_ids = [],
+        } = req.body;
 
-    res.status(201).json({
-      success: true,
-      message: "Servicio creado correctamente",
-      data: result,
-    });
+        if (!name || !duration || price === undefined || price === null) {
+            return res.status(400).json({
+                success: false,
+                error: "El nombre, la duración y el precio son obligatorios",
+            });
+        }
 
-  } catch (err) {
-    console.error("Error creando servicio:", err);
+        if (!Array.isArray(barber_ids)) {
+            return res.status(400).json({
+                success: false,
+                error: "barber_ids debe ser una lista de identificadores",
+            });
+        }
 
-    res.status(500).json({
-      success: false,
-      error: "Error creando servicio",
-    });
-  }
+        const result = await Service.create({
+            name,
+            description,
+            duration: Number(duration),
+            price: Number(price),
+            image,
+            barber_ids,
+        });
+
+        return res.status(201).json({
+            success: true,
+            message: "Servicio creado correctamente",
+            data: result,
+        });
+    } catch (err) {
+        console.error("Error creando servicio:", err);
+
+        return res.status(500).json({
+            success: false,
+            error: "Error creando servicio",
+        });
+    }
 };
 
-
-// ✅ ACTUALIZAR SERVICIO
+// ==========================================
+// ACTUALIZAR SERVICIO
+// ==========================================
 exports.updateService = async (req, res) => {
-  try {
-    const { id } = req.params;
+    try {
+        const { id } = req.params;
 
-    const service = await Service.findById(id);
+        const service = await Service.findById(id);
 
-    if (!service) {
-      return res.status(404).json({
-        success: false,
-        error: "Servicio no encontrado",
-      });
+        if (!service) {
+            return res.status(404).json({
+                success: false,
+                error: "Servicio no encontrado",
+            });
+        }
+
+        const {
+            name,
+            description,
+            duration,
+            price,
+            image,
+            barber_ids,
+        } = req.body;
+
+        if (!name || !duration || price === undefined || price === null) {
+            return res.status(400).json({
+                success: false,
+                error: "El nombre, la duración y el precio son obligatorios",
+            });
+        }
+
+        if (
+            barber_ids !== undefined &&
+            !Array.isArray(barber_ids)
+        ) {
+            return res.status(400).json({
+                success: false,
+                error: "barber_ids debe ser una lista de identificadores",
+            });
+        }
+
+        await Service.update(id, {
+            name,
+            description,
+            duration: Number(duration),
+            price: Number(price),
+            image,
+            ...(barber_ids !== undefined ? { barber_ids } : {}),
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Servicio actualizado correctamente",
+        });
+    } catch (err) {
+        console.error("Error actualizando servicio:", err);
+
+        return res.status(500).json({
+            success: false,
+            error: "Error actualizando servicio",
+        });
     }
-
-    await Service.update(id, req.body);
-
-    res.json({
-      success: true,
-      message: "Servicio actualizado correctamente",
-    });
-
-  } catch (err) {
-    console.error("Error actualizando servicio:", err);
-
-    res.status(500).json({
-      success: false,
-      error: "Error actualizando servicio",
-    });
-  }
 };
 
-
-// ✅ DESACTIVAR SERVICIO
+// ==========================================
+// DESACTIVAR SERVICIO
+// ==========================================
 exports.deactivateService = async (req, res) => {
-  try {
-    const { id } = req.params;
+    try {
+        const { id } = req.params;
 
-    const service = await Service.findById(id);
+        const service = await Service.findById(id);
 
-    if (!service) {
-      return res.status(404).json({
-        success: false,
-        error: "Servicio no encontrado",
-      });
+        if (!service) {
+            return res.status(404).json({
+                success: false,
+                error: "Servicio no encontrado",
+            });
+        }
+
+        await Service.deactivate(id);
+
+        return res.status(200).json({
+            success: true,
+            message: "Servicio desactivado correctamente",
+        });
+    } catch (err) {
+        console.error("Error desactivando servicio:", err);
+
+        return res.status(500).json({
+            success: false,
+            error: "Error desactivando servicio",
+        });
     }
-
-    await Service.deactivate(id);
-
-    res.json({
-      success: true,
-      message: "Servicio desactivado correctamente",
-    });
-
-  } catch (err) {
-    console.error("Error desactivando servicio:", err);
-
-    res.status(500).json({
-      success: false,
-      error: "Error desactivando servicio",
-    });
-  }
 };
 
-
-// ✅ ACTIVAR SERVICIO
+// ==========================================
+// ACTIVAR SERVICIO
+// ==========================================
 exports.activateService = async (req, res) => {
-  try {
-    const { id } = req.params;
+    try {
+        const { id } = req.params;
 
-    const service = await Service.findById(id);
+        const service = await Service.findById(id);
 
-    if (!service) {
-      return res.status(404).json({
-        success: false,
-        error: "Servicio no encontrado",
-      });
+        if (!service) {
+            return res.status(404).json({
+                success: false,
+                error: "Servicio no encontrado",
+            });
+        }
+
+        await Service.activate(id);
+
+        return res.status(200).json({
+            success: true,
+            message: "Servicio activado correctamente",
+        });
+    } catch (err) {
+        console.error("Error activando servicio:", err);
+
+        return res.status(500).json({
+            success: false,
+            error: "Error activando servicio",
+        });
     }
-
-    await Service.activate(id);
-
-    res.json({
-      success: true,
-      message: "Servicio activado correctamente",
-    });
-
-  } catch (err) {
-    console.error("Error activando servicio:", err);
-
-    res.status(500).json({
-      success: false,
-      error: "Error activando servicio",
-    });
-  }
 };
 
-
-// ✅ ELIMINAR SERVICIO DEFINITIVAMENTE
+// ==========================================
+// ELIMINAR SERVICIO DEFINITIVAMENTE
+// ==========================================
 exports.deleteService = async (req, res) => {
-  try {
-    const { id } = req.params;
+    try {
+        const { id } = req.params;
 
-    const service = await Service.findById(id);
+        const service = await Service.findById(id);
 
-    if (!service) {
-      return res.status(404).json({
-        success: false,
-        error: "Servicio no encontrado",
-      });
+        if (!service) {
+            return res.status(404).json({
+                success: false,
+                error: "Servicio no encontrado",
+            });
+        }
+
+        await Service.delete(id);
+
+        return res.status(200).json({
+            success: true,
+            message: "Servicio eliminado definitivamente",
+        });
+    } catch (err) {
+        console.error("Error eliminando servicio:", err);
+
+        return res.status(500).json({
+            success: false,
+            error: "No se pudo eliminar el servicio",
+        });
     }
-
-    await Service.delete(id);
-
-    res.json({
-      success: true,
-      message: "Servicio eliminado definitivamente",
-    });
-
-  } catch (err) {
-    console.error("Error eliminando servicio:", err);
-
-    res.status(500).json({
-      success: false,
-      error: "No se pudo eliminar el servicio",
-    });
-  }
 };
