@@ -1,10 +1,9 @@
 const Barber = require("../models/Barber");
 
-
 // ✅ LISTAR TODOS LOS BARBEROS
 exports.getBarbers = async (req, res) => {
   try {
-    const rows = await Barber.getAll();
+    const rows = await Barber.getAvailable();
 
     res.json({
       success: true,
