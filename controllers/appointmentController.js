@@ -535,24 +535,33 @@ class AppointmentController {
 
 
       // ==========================================
-      // FECHA ACTUAL
-      // ==========================================
+// FECHA Y HORA ACTUAL DE COSTA RICA
+// ==========================================
 
-      const now = new Date();
+const timeZone = "America/Costa_Rica";
 
+const costaRicaParts = new Intl.DateTimeFormat("en-CA", {
+  timeZone,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+}).formatToParts(new Date());
+
+      const getPart = (type) =>
+       costaRicaParts.find((part) => part.type === type).value;
 
       const today =
-        `${now.getFullYear()}-${String(
-          now.getMonth() + 1
-        ).padStart(2, "0")}-${String(
-          now.getDate()
-        ).padStart(2, "0")}`;
+      `${getPart("year")}-${getPart("month")}-${getPart("day")}`;
 
+      const currentMinutes =
+      Number(getPart("hour")) * 60 +
+      Number(getPart("minute"));
 
-      console.log(
-        "Hoy:",
-        today
-      );
+      console.log("Fecha de Costa Rica:", today);
+      console.log("Hora de Costa Rica:", getPart("hour") + ":" + getPart("minute"));
 
 
       // ==========================================
@@ -599,30 +608,19 @@ class AppointmentController {
         }
 
 
-        // ==========================================
-        // SI ES HOY
-        // OCULTAR HORARIOS PASADOS
-        // Y DEJAR 30 MINUTOS DE MARGEN
-        // ==========================================
+       // ==========================================
+// SI ES HOY
+// OCULTAR HORARIOS PASADOS
+// Y DEJAR 30 MINUTOS DE MARGEN
+// ==========================================
 
-        if (
-          appointment_date === today
-        ) {
+if (appointment_date === today) {
 
-          const currentMinutes =
-            now.getHours() * 60 +
-            now.getMinutes();
+  if (minutes <= currentMinutes + 30) {
+    continue;
+  }
 
-
-          if (
-            minutes <= currentMinutes + 30
-          ) {
-
-            continue;
-
-          }
-
-        }
+}
 
 
         // ==========================================
