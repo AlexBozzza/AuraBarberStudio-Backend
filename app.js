@@ -18,6 +18,7 @@ const appointmentRoutes = require("./routes/appointmentRoutes");
 const serviceRoutes = require("./routes/serviceRoutes");
 const barberRoutes = require("./routes/barberRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
+const reviewRoutes = require("./routes/reviewRoutes");
 
 const app = express();
 
@@ -177,6 +178,11 @@ app.use(
     dashboardRoutes
 );
 
+app.use(
+    `${API_PREFIX}/reviews`,
+    reviewRoutes
+);
+
 /* ==============================
    DOCUMENTACIÓN
 ============================== */
@@ -196,7 +202,9 @@ app.get("/docs", (req, res) => {
             appointments: `${API_PREFIX}/appointments`,
             services: `${API_PREFIX}/services`,
             barbers: `${API_PREFIX}/barbers`,
+            reviews: `${API_PREFIX}/reviews`,
             health: "/health"
+            
         }
     });
 });
