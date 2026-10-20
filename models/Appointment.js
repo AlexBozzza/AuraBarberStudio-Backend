@@ -305,6 +305,40 @@ class Appointment {
     return this.findById(id);
   }
 
+  
+  // ==========================================================
+  // OBTENER CITAS PENDIENTES DE RECORDATORIO
+  // ==========================================================
+  static async findAppointmentsForReminders(fromDateTime, toDateTime) {
+    const [rows] = await pool.execute(
+      `SELECT
+          a.id,
+          a.user_id,
+          a.appointment_date,
+          a.start_time,
+          a.status,
+          u.email AS customer_email,
+          u.first_name AS customer_first_name,
+          u.last_name AS customer_last_name,
+          s.name AS service_name,
+          bu.first_name AS barber_first_name,
+          bu.last_name AS barber_last_name
+       FROM appointments a
+       INNER JOIN users u ON a.user_id = u.id
+       INNER JOIN barbers b ON a.barber_id = b.id
+       INNER JOIN users bu ON b.user_id = bu.id
+       INNER JOIN services s ON a.service_id = s.id
+       WHERE a.status IN ('PENDING', 'CONFIRMED')
+         AND a.reminder_sent_at IS NULL
+         AND TIMESTAMP(a.appointment_date, a.start_time)
+             BETWEEN ? AND ?
+       ORDER BY a.appointment_date ASC, a.start_time ASC`,
+      [fromDateTime, toDateTime]
+    );
+
+    return rows;
+  }
+
 
   // ==========================================================
   // ELIMINAR CITA

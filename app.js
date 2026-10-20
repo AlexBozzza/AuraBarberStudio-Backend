@@ -19,6 +19,7 @@ const serviceRoutes = require("./routes/serviceRoutes");
 const barberRoutes = require("./routes/barberRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
 const reviewRoutes = require("./routes/reviewRoutes");
+const { startReminderService } = require("./services/reminderService");
 
 const app = express();
 
@@ -291,6 +292,7 @@ const initializeApp = async () => {
             console.log(
                 `💚 Health: http://localhost:${PORT}/health`
             );
+            startReminderService();
         });
 
         process.on("SIGINT", () => {
