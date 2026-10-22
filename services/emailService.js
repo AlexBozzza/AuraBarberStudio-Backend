@@ -1,35 +1,14 @@
 
-const nodemailer = require("nodemailer");
+const API_URL = "https://api.brevo.com/v3";
 
-const requiredEnv = [
-    "BREVO_SMTP_HOST",
-    "BREVO_SMTP_PORT",
-    "BREVO_SMTP_USER",
-    "BREVO_SMTP_PASS",
-    "BREVO_SENDER_EMAIL",
-    "BREVO_SENDER_NAME"
-];
+function getApiKey() {
+    const apiKey = process.env.BREVO_API_KEY;
 
-function createTransporter() {
-    const missing = requiredEnv.filter(
-        (key) => !process.env[key]
-    );
-
-    if (missing.length > 0) {
-        throw new Error(
-            `Faltan variables de correo: ${missing.join(", ")}`
-        );
+    if (!apiKey) {
+        throw new Error("Falta la variable BREVO_API_KEY");
     }
 
-    return nodemailer.createTransport({
-        host: "smtp-relay.sendinblue.com",
-        port: Number(process.env.BREVO_SMTP_PORT),
-        secure: Number(process.env.BREVO_SMTP_PORT) === 465,
-        auth: {
-            user: process.env.BREVO_SMTP_USER,
-            pass: process.env.BREVO_SMTP_PASS
-        }
-    });
+    return apiKey;
 }
 
 async function sendEmail({ to, subject, text, html }) {
@@ -37,23 +16,76 @@ async function sendEmail({ to, subject, text, html }) {
         throw new Error("El destinatario del correo es obligatorio");
     }
 
-    const transporter = createTransporter();
+    if (!subject || (!text && !html)) {
+        throw new Error("Faltan el asunto o el contenido del correo");
+    }
 
-    return transporter.sendMail({
-        from: {
-            name: process.env.BREVO_SENDER_NAME,
-            address: process.env.BREVO_SENDER_EMAIL
+    const body = {
+        sender: {
+            name: process.env.BREVO_SENDER_NAME || "AuraBarberStudio",
+            email: process.env.BREVO_SENDER_EMAIL
         },
-        to,
-        subject,
-        text,
-        html
+        to: [{ email: to }],
+        subject
+    };
+
+    if (html) {
+        body.htmlContent = html;
+    } else {
+        body.textContent = text;
+    }
+
+    const response = await fetch(`${API_URL}/smtp/email`, {
+        method: "POST",
+        headers: {
+            "accept": "application/json",
+            "api-key": getApiKey(),
+            "content-type": "application/json"
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15000)
     });
+
+    const responseText = await response.text();
+
+    if (!response.ok) {
+        throw new Error(
+            `Brevo API (${response.status}): ${responseText}`
+        );
+    }
+
+    let result = {};
+
+    if (responseText) {
+        try {
+            result = JSON.parse(responseText);
+        } catch {
+            result = { response: responseText };
+        }
+    }
+
+    console.log("Correo aceptado por Brevo:", result.messageId || "OK");
+
+    return result;
 }
 
 async function verifyEmailConnection() {
-    const transporter = createTransporter();
-    return transporter.verify();
+    const response = await fetch(`${API_URL}/account`, {
+        headers: {
+            "accept": "application/json",
+            "api-key": getApiKey()
+        },
+        signal: AbortSignal.timeout(15000)
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+            `Brevo API (${response.status}): ${errorText}`
+        );
+    }
+
+    return true;
 }
 
 module.exports = {
