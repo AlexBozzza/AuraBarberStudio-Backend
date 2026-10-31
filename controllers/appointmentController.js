@@ -664,32 +664,29 @@ if (appointment_date === today) {
 
 
         // ==========================================
-        // COMPROBAR SI ESTÁ OCUPADO
-        // ==========================================
+// COMPROBAR SI ESTÁ OCUPADO
+// IGNORAR CITAS CANCELADAS
+// ==========================================
 
-        let occupied = false;
+let occupied = false;
 
+for (const appointment of appointments) {
 
-        for (
-          const appointment
-          of appointments
-        ) {
+  const status = String(appointment.status || "").toUpperCase();
 
-          if (
-            startTime <
-              appointment.end_time &&
+  if (!["PENDING", "CONFIRMED"].includes(status)) {
+    continue;
+  }
 
-            endTime >
-              appointment.start_time
-          ) {
+  if (
+    startTime < appointment.end_time &&
+    endTime > appointment.start_time
+  ) {
+    occupied = true;
+    break;
+  }
 
-            occupied = true;
-
-            break;
-
-          }
-
-        }
+}
 
 
         // ==========================================
