@@ -746,6 +746,96 @@ if (appointment_date === today) {
 
   }
 
+  
+  // ==========================================
+// CANCELAR CITA DEL CLIENTE AUTENTICADO
+// ==========================================
+
+static async cancelMyAppointment(req, res) {
+
+  try {
+
+    const appointmentId = req.params.id;
+    const user_id = req.user.userId;
+
+    if (!user_id) {
+      return res.status(401).json({
+        success: false,
+        message: "Usuario no autenticado"
+      });
+    }
+
+    if (!/^\d+$/.test(appointmentId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Identificador de cita inválido"
+      });
+    }
+
+    // Obtener fecha y hora actuales de Costa Rica
+    const timeZone = "America/Costa_Rica";
+
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23"
+    }).formatToParts(new Date());
+
+    const getPart = (type) =>
+      parts.find((part) => part.type === type).value;
+
+    const currentDate =
+      `${getPart("year")}-${getPart("month")}-${getPart("day")}`;
+
+    const currentTime =
+      `${getPart("hour")}:${getPart("minute")}:00`;
+
+    const result = await Appointment.cancelByUser(
+      appointmentId,
+      user_id,
+      currentDate,
+      currentTime
+    );
+
+    if (!result.success) {
+
+      if (!result.appointment ||
+          String(result.appointment.user_id) !== String(user_id)) {
+        return res.status(404).json({
+          success: false,
+          message: "Cita no encontrada"
+        });
+      }
+
+      return res.status(409).json({
+        success: false,
+        message:
+          "Esta cita ya no se puede cancelar. Puede haber comenzado, estar completada o ya estar cancelada."
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Tu cita ha sido cancelada correctamente",
+      data: result.appointment
+    });
+
+  } catch (error) {
+
+    console.error("Error cancelando cita:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Error interno al cancelar la cita"
+    });
+
+  }
+}
+
 
   // ==========================================
   // CAMBIAR ESTADO

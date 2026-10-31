@@ -104,5 +104,15 @@ router.delete(
   AppointmentController.deleteAppointment
 );
 
+// ==========================================
+// CANCELAR CITA DEL CLIENTE
+// Requiere usuario autenticado
+// ==========================================
+
+router.patch(
+  "/:id/cancel",
+  authenticateToken,
+  AppointmentController.cancelMyAppointment
+);
 
 module.exports = router;
