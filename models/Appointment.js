@@ -345,6 +345,47 @@ static async cancelByUser(id, user_id, currentDate, currentTime) {
   };
 }
 
+
+  // ==========================================================
+// REAGENDAR CITA POR PARTE DEL CLIENTE
+// ==========================================================
+static async rescheduleByUser(id, user_id, currentDate, currentTime) {
+
+  const [result] = await pool.execute(
+    `UPDATE appointments
+     SET status = 'RESCHEDULED'
+     WHERE id = ?
+       AND user_id = ?
+       AND status IN ('PENDING', 'CONFIRMED')
+       AND (
+         appointment_date > ?
+         OR (
+           appointment_date = ?
+           AND start_time > ?
+         )
+       )`,
+    [
+      id,
+      user_id,
+      currentDate,
+      currentDate,
+      currentTime
+    ]
+  );
+
+  if (result.affectedRows === 0) {
+    return {
+      success: false,
+      appointment: await this.findById(id)
+    };
+  }
+
+  return {
+    success: true,
+    appointment: await this.findById(id)
+  };
+}
+
   
   // ==========================================================
   // OBTENER CITAS PENDIENTES DE RECORDATORIO

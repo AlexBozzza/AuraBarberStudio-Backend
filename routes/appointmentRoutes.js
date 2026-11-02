@@ -115,4 +115,15 @@ router.patch(
   AppointmentController.cancelMyAppointment
 );
 
+// ==========================================
+// REAGENDAR CITA DEL CLIENTE
+// Requiere usuario autenticado
+// ==========================================
+
+router.patch(
+  "/:id/reschedule",
+  authenticateToken,
+  AppointmentController.rescheduleMyAppointment
+);
+
 module.exports = router;
