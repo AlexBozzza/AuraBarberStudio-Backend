@@ -41,10 +41,15 @@ app.use(
 
 // Orígenes autorizados para acceder a la API
 const allowedOrigins = [
+    // Desarrollo local
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
     "http://localhost:3000",
     "http://localhost:3001",
+
+    // Producción
     "https://aura-barber-studio-frontend.vercel.app"
 ];
 
