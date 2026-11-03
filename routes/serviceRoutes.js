@@ -1,72 +1,78 @@
+
 const express = require("express");
 const router = express.Router();
 
 const ServiceController = require("../controllers/serviceController");
 
+const {
+    authenticateToken,
+    authorizeRoles
+} = require("../middleware/auth");
 
-// ✅ GET /services
-// Obtener todos los servicios
+const upload = require("../middleware/upload");
+const { sanitizeInput } = require("../middleware/validation");
+
+// Protección para operaciones administrativas
+const adminAccess = [
+    authenticateToken,
+    authorizeRoles(["BARBER"])
+];
+
+// GET /services - Obtener todos los servicios (público)
 router.get(
-  "/",
-  ServiceController.getServices
+    "/",
+    ServiceController.getServices
 );
 
-
-// ✅ GET /services/active
-// Obtener solamente los servicios activos
-// IMPORTANTE: debe ir antes de /:id
+// GET /services/active - Obtener servicios activos (público)
 router.get(
-  "/active",
-  ServiceController.getActiveServices
+    "/active",
+    ServiceController.getActiveServices
 );
 
-
-// ✅ GET /services/:id
-// Obtener un servicio específico
+// GET /services/:id - Obtener servicio por ID (público)
 router.get(
-  "/:id",
-  ServiceController.getServiceById
+    "/:id",
+    ServiceController.getServiceById
 );
 
-
-// ✅ POST /services
-// Crear un nuevo servicio
+// POST /services - Crear servicio
 router.post(
-  "/",
-  ServiceController.createService
+    "/",
+    ...adminAccess,
+    upload.single("image"),
+    sanitizeInput,
+    ServiceController.createService
 );
 
-
-// ✅ PUT /services/:id
-// Actualizar un servicio
+// PUT /services/:id - Actualizar servicio
 router.put(
-  "/:id",
-  ServiceController.updateService
+    "/:id",
+    ...adminAccess,
+    upload.single("image"),
+    sanitizeInput,
+    ServiceController.updateService
 );
 
-
-// ✅ PATCH /services/:id/deactivate
-// Desactivar un servicio
+// PATCH /services/:id/deactivate
 router.patch(
-  "/:id/deactivate",
-  ServiceController.deactivateService
+    "/:id/deactivate",
+    ...adminAccess,
+    ServiceController.deactivateService
 );
 
-
-// ✅ PATCH /services/:id/activate
-// Reactivar un servicio
+// PATCH /services/:id/activate
 router.patch(
-  "/:id/activate",
-  ServiceController.activateService
+    "/:id/activate",
+    ...adminAccess,
+    ServiceController.activateService
 );
 
-
-// ✅ DELETE /services/:id
-// Eliminar un servicio definitivamente
+// DELETE /services/:id
 router.delete(
-  "/:id",
-  ServiceController.deleteService
+    "/:id",
+    ...adminAccess,
+    ServiceController.deleteService
 );
-
 
 module.exports = router;

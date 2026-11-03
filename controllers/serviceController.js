@@ -1,6 +1,61 @@
 
 const Service = require("../models/Service");
 
+const cloudinary = require("../config/cloudinary");
+const { Readable } = require("stream");
+
+// ==========================================
+// SUBIR IMAGEN A CLOUDINARY
+// ==========================================
+const uploadToCloudinary = (file) => {
+    return new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+            {
+                folder: "aura-barber-studio/services",
+                resource_type: "image"
+            },
+            (error, result) => {
+                if (error) {
+                    return reject(error);
+                }
+
+                resolve(result);
+            }
+        );
+
+        Readable.from(file.buffer).pipe(uploadStream);
+    });
+};
+
+// ==========================================
+// PROCESAR IDENTIFICADORES DE BARBEROS
+// ==========================================
+const parseBarberIds = (value) => {
+    if (value === undefined || value === null || value === "") {
+        return [];
+    }
+
+    if (Array.isArray(value)) {
+        return value;
+    }
+
+    if (typeof value !== "string") {
+        return null;
+    }
+
+    try {
+        const parsed = JSON.parse(value);
+
+        if (Array.isArray(parsed)) {
+            return parsed;
+        }
+
+        return null;
+    } catch (error) {
+        return value.split(",").filter(Boolean);
+    }
+};
+
 // ==========================================
 // LISTAR TODOS LOS SERVICIOS
 // ==========================================
@@ -77,15 +132,17 @@ exports.getServiceById = async (req, res) => {
 // CREAR SERVICIO
 // ==========================================
 exports.createService = async (req, res) => {
+    let uploadedImage = null;
+
     try {
         const {
             name,
             description,
             duration,
-            price,
-            image,
-            barber_ids = [],
+            price
         } = req.body;
+
+        const barber_ids = parseBarberIds(req.body.barber_ids);
 
         if (!name || !duration || price === undefined || price === null) {
             return res.status(400).json({
@@ -101,12 +158,24 @@ exports.createService = async (req, res) => {
             });
         }
 
+        let image = req.body.image || null;
+        let image_public_id = null;
+
+        // Subir fotografía a Cloudinary
+        if (req.file) {
+            uploadedImage = await uploadToCloudinary(req.file);
+
+            image = uploadedImage.secure_url;
+            image_public_id = uploadedImage.public_id;
+        }
+
         const result = await Service.create({
             name,
             description,
             duration: Number(duration),
             price: Number(price),
             image,
+            image_public_id,
             barber_ids,
         });
 
@@ -115,7 +184,21 @@ exports.createService = async (req, res) => {
             message: "Servicio creado correctamente",
             data: result,
         });
+
     } catch (err) {
+
+        // Limpiar imagen si falla la creación en MySQL
+        if (uploadedImage?.public_id) {
+            try {
+                await cloudinary.uploader.destroy(uploadedImage.public_id);
+            } catch (deleteError) {
+                console.error(
+                    "Error eliminando imagen temporal:",
+                    deleteError
+                );
+            }
+        }
+
         console.error("Error creando servicio:", err);
 
         return res.status(500).json({
@@ -129,6 +212,8 @@ exports.createService = async (req, res) => {
 // ACTUALIZAR SERVICIO
 // ==========================================
 exports.updateService = async (req, res) => {
+    let uploadedImage = null;
+
     try {
         const { id } = req.params;
 
@@ -145,10 +230,10 @@ exports.updateService = async (req, res) => {
             name,
             description,
             duration,
-            price,
-            image,
-            barber_ids,
+            price
         } = req.body;
+
+        let barber_ids = req.body.barber_ids;
 
         if (!name || !duration || price === undefined || price === null) {
             return res.status(400).json({
@@ -157,14 +242,33 @@ exports.updateService = async (req, res) => {
             });
         }
 
-        if (
-            barber_ids !== undefined &&
-            !Array.isArray(barber_ids)
+        if (barber_ids !== undefined) {
+            barber_ids = parseBarberIds(barber_ids);
+
+            if (!Array.isArray(barber_ids)) {
+                return res.status(400).json({
+                    success: false,
+                    error: "barber_ids debe ser una lista de identificadores",
+                });
+            }
+        }
+
+        // Conservar la fotografía actual por defecto
+        let image = req.body.image || service.image;
+        let image_public_id = service.image_public_id || null;
+
+        // Subir nueva fotografía si se seleccionó una
+        if (req.file) {
+            uploadedImage = await uploadToCloudinary(req.file);
+
+            image = uploadedImage.secure_url;
+            image_public_id = uploadedImage.public_id;
+
+        } else if (
+            req.body.image &&
+            req.body.image !== service.image
         ) {
-            return res.status(400).json({
-                success: false,
-                error: "barber_ids debe ser una lista de identificadores",
-            });
+            image_public_id = null;
         }
 
         await Service.update(id, {
@@ -173,14 +277,47 @@ exports.updateService = async (req, res) => {
             duration: Number(duration),
             price: Number(price),
             image,
+            image_public_id,
             ...(barber_ids !== undefined ? { barber_ids } : {}),
         });
+
+        // Eliminar imagen anterior después de actualizar MySQL
+        if (
+            uploadedImage &&
+            service.image_public_id &&
+            service.image_public_id !== uploadedImage.public_id
+        ) {
+            try {
+                await cloudinary.uploader.destroy(
+                    service.image_public_id
+                );
+            } catch (deleteError) {
+                console.error(
+                    "No se pudo eliminar la imagen anterior:",
+                    deleteError
+                );
+            }
+        }
 
         return res.status(200).json({
             success: true,
             message: "Servicio actualizado correctamente",
         });
+
     } catch (err) {
+
+        // Limpiar la nueva fotografía si falla la actualización
+        if (uploadedImage?.public_id) {
+            try {
+                await cloudinary.uploader.destroy(uploadedImage.public_id);
+            } catch (deleteError) {
+                console.error(
+                    "Error eliminando imagen temporal:",
+                    deleteError
+                );
+            }
+        }
+
         console.error("Error actualizando servicio:", err);
 
         return res.status(500).json({

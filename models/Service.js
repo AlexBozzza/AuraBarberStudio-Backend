@@ -88,6 +88,7 @@ const Service = {
         duration,
         price,
         image,
+        image_public_id,
         barber_ids = [],
     }) {
         if (!Array.isArray(barber_ids)) {
@@ -101,9 +102,16 @@ const Service = {
 
             const [result] = await connection.execute(
                 `INSERT INTO services
-                    (name, description, duration, price, image)
-                 VALUES (?, ?, ?, ?, ?)`,
-                [name, description, duration, price, image || null]
+                    (name, description, duration, price, image, image_public_id)
+                 VALUES (?, ?, ?, ?, ?, ?)`,
+                [
+                    name,
+                    description,
+                    duration,
+                    price,
+                    image || null,
+                    image_public_id || null
+                ]
             );
 
             const serviceId = result.insertId;
@@ -148,6 +156,7 @@ const Service = {
             duration,
             price,
             image,
+            image_public_id,
             barber_ids,
         }
     ) {
@@ -169,7 +178,8 @@ const Service = {
                      description = ?,
                      duration = ?,
                      price = ?,
-                     image = ?
+                     image = ?,
+                     image_public_id = ?
                  WHERE id = ?`,
                 [
                     name,
@@ -177,6 +187,7 @@ const Service = {
                     duration,
                     price,
                     image || null,
+                    image_public_id || null,
                     id,
                 ]
             );

@@ -288,17 +288,27 @@ const handleValidationErrors = (req, res, next) => {
 /**
  * Middleware para validar Content-Type
  */
+
 const validateContentType = (req, res, next) => {
+    if (["POST", "PUT", "PATCH"].includes(req.method)) {
 
-    if (
-        ['POST', 'PUT', 'PATCH'].includes(req.method)
-    ) {
+        // Permitir multipart/form-data únicamente
+        // para crear y editar servicios.
+        const isServiceImageRoute =
+            /(^|\/)services(?:\/\d+)?\/?$/.test(req.path);
 
-        if (!req.is('application/json')) {
+        const isMultipart =
+            req.is("multipart/form-data");
 
+        if (isServiceImageRoute && isMultipart) {
+            return next();
+        }
+
+        // Las demás solicitudes deben utilizar JSON.
+        if (!req.is("application/json")) {
             return res.status(400).json({
                 success: false,
-                message: 'Content-Type debe ser application/json'
+                message: "Content-Type debe ser application/json"
             });
         }
     }
