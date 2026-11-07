@@ -7,6 +7,8 @@ const { pool } = require("../config/database");
 const TIME_ZONE = "America/Costa_Rica";
 const REMINDER_HOURS = 2;
 
+const MY_APPOINTMENTS_URL = "https://aura-barber-studio-frontend.vercel.app/my-appointments";
+
 const GOOGLE_MAPS_URL =
     "https://www.google.com/maps?ll=10.015075,-84.207797&z=15&t=m&hl=es-AR&gl=US&mapclient=embed&cid=14195062347311821857";
 
@@ -137,6 +139,10 @@ async function processReminders() {
                 `Barbero: ${barberName || "Por confirmar"}`,
                 "",
                 `Ubicación y cómo llegar: ${GOOGLE_MAPS_URL}`,
+                "",
+                "¿Necesitas modificar tu cita?",
+                `Reagendar mi cita: ${MY_APPOINTMENTS_URL}`,
+                `Cancelar mi cita: ${MY_APPOINTMENTS_URL}`,
                 "",
                 "¡Te esperamos!",
                 "Aura Barber Studio",
@@ -365,6 +371,84 @@ async function processReminders() {
                                             </table>
                                         </td>
                                     </tr>
+                                    
+
+                                    
+                                        <!-- Gestionar cita -->
+                                    <tr>
+                                     <td style="padding:0 26px 28px;">
+                                      <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+                                    style="
+                                     background-color:#F7F3EA;
+                                        border:1px solid ${COLORS.border};
+                                    border-radius:9px;
+                                        ">
+                                    <tr>
+                                        <td align="center" style="padding:24px 18px;">
+                                    <div style="
+                                    font-size:19px;
+                                   font-weight:bold;
+                                   color:${COLORS.black};
+                                    ">
+                                  ¿Necesitas modificar tu cita?
+                                    </div>
+
+                                 <div style="
+                                margin-top:8px;
+                               margin-bottom:20px;
+                               font-size:13px;
+                                color:${COLORS.muted};
+                              ">
+                        Puedes reagendar o cancelar tu reservación fácilmente desde nuestra página web.
+                    </div>
+
+                    <a href="${MY_APPOINTMENTS_URL}"
+                        target="_blank"
+                        style="
+                            display:inline-block;
+                            padding:13px 22px;
+                            background-color:${COLORS.gold};
+                            color:${COLORS.black};
+                            text-decoration:none;
+                            font-size:13px;
+                            font-weight:bold;
+                            border-radius:5px;
+                        ">
+                        REAGENDAR MI CITA
+                    </a>
+
+                    <div style="height:12px;line-height:12px;font-size:12px;">&nbsp;</div>
+
+                    <a href="${MY_APPOINTMENTS_URL}"
+                        target="_blank"
+                        style="
+                            display:inline-block;
+                            padding:12px 22px;
+                            background-color:${COLORS.white};
+                            border:1px solid ${COLORS.gold};
+                            color:${COLORS.black};
+                            text-decoration:none;
+                            font-size:13px;
+                            font-weight:bold;
+                            border-radius:5px;
+                        ">
+                        CANCELAR MI CITA
+                    </a>
+
+                                <div style="
+                               margin-top:14px;
+                              font-size:11px;
+                                 color:${COLORS.muted};
+                                    ">
+                                 Ambas opciones te llevarán a tu panel de citas.
+                              </div>
+                                    </td>
+                                     </tr>
+                                    </table>
+                                   </td>
+                                    </tr>
+
+
 
                                     <!-- Pie -->
                                     <tr>
