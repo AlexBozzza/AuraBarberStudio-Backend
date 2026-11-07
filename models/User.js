@@ -1,9 +1,8 @@
+
 const { pool } = require("../config/database");
 
 class User {
-
     constructor(data) {
-
         this.id = data.id;
         this.first_name = data.first_name;
         this.last_name = data.last_name;
@@ -13,18 +12,16 @@ class User {
         this.role = data.role;
         this.profile_image = data.profile_image;
         this.is_active = data.is_active;
+        this.email_verified = data.email_verified;
         this.created_at = data.created_at;
         this.updated_at = data.updated_at;
-
     }
-
 
     // ============================================================
     // OBTENER TODOS LOS USUARIOS
     // ============================================================
 
     static async findAll() {
-
         const [rows] = await pool.query(
             `SELECT
                 id,
@@ -35,6 +32,7 @@ class User {
                 role,
                 profile_image,
                 is_active,
+                email_verified,
                 created_at,
                 updated_at
             FROM users
@@ -42,16 +40,13 @@ class User {
         );
 
         return rows;
-
     }
-
 
     // ============================================================
     // OBTENER USUARIO POR ID
     // ============================================================
 
     static async findById(id) {
-
         const [rows] = await pool.query(
             `SELECT
                 id,
@@ -62,6 +57,7 @@ class User {
                 role,
                 profile_image,
                 is_active,
+                email_verified,
                 created_at,
                 updated_at
             FROM users
@@ -70,16 +66,13 @@ class User {
         );
 
         return rows[0] || null;
-
     }
-
 
     // ============================================================
     // BUSCAR USUARIO POR EMAIL
     // ============================================================
 
     static async findByEmail(email) {
-
         const [rows] = await pool.query(
             `SELECT
                 id,
@@ -90,6 +83,7 @@ class User {
                 role,
                 profile_image,
                 is_active,
+                email_verified,
                 created_at,
                 updated_at
             FROM users
@@ -98,9 +92,7 @@ class User {
         );
 
         return rows[0] || null;
-
     }
-
 
     // ============================================================
     // BUSCAR USUARIO CON CONTRASEÑA
@@ -108,7 +100,6 @@ class User {
     // ============================================================
 
     static async findByEmailWithPassword(email) {
-
         const [rows] = await pool.query(
             `SELECT *
              FROM users
@@ -117,12 +108,11 @@ class User {
         );
 
         return rows[0] || null;
-
     }
-
 
     // ============================================================
     // CREAR USUARIO
+    // Los registros nuevos quedan pendientes de verificación
     // ============================================================
 
     static async create({
@@ -132,16 +122,16 @@ class User {
         phone,
         password
     }) {
-
         const [result] = await pool.query(
             `INSERT INTO users (
                 first_name,
                 last_name,
                 email,
                 phone,
-                password
+                password,
+                email_verified
             )
-            VALUES (?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, 0)`,
             [
                 first_name,
                 last_name,
@@ -152,71 +142,127 @@ class User {
         );
 
         return this.findById(result.insertId);
-
     }
-
 
     // ============================================================
-// ACTUALIZAR USUARIO
-// ============================================================
+    // GUARDAR TOKEN DE VERIFICACIÓN
+    // ============================================================
 
-static async updateUser(
-    id,
-    {
-        first_name,
-        last_name,
-        email,
-        phone,
-        password
+    static async saveEmailVerificationToken(
+        userId,
+        tokenHash,
+        expiresAt
+    ) {
+        await pool.query(
+            `UPDATE users
+             SET
+                email_verification_token_hash = ?,
+                email_verification_expires_at = ?
+             WHERE id = ?`,
+            [tokenHash, expiresAt, userId]
+        );
     }
-) {
 
-    let sql = `
-        UPDATE users
-        SET
-            first_name = ?,
-            last_name = ?,
-            email = ?,
-            phone = ?,
-            updated_at = NOW()
-    `;
+    // ============================================================
+    // BUSCAR USUARIO POR TOKEN DE VERIFICACIÓN
+    // ============================================================
 
-    const params = [
-        first_name,
-        last_name,
-        email,
-        phone
-    ];
+    static async findByEmailVerificationToken(tokenHash) {
+        const [rows] = await pool.query(
+            `SELECT
+                id,
+                first_name,
+                last_name,
+                email,
+                email_verified,
+                email_verification_expires_at
+             FROM users
+             WHERE
+                email_verification_token_hash = ?
+                AND email_verification_expires_at > NOW()
+                AND email_verified = 0`,
+            [tokenHash]
+        );
 
-    // Si se está cambiando la contraseña
-    if (password) {
+        return rows[0] || null;
+    }
 
-        sql += `,
-            password = ?
+    // ============================================================
+    // CONFIRMAR CORREO ELECTRÓNICO
+    // ============================================================
+
+    static async verifyEmail(userId) {
+        const [result] = await pool.query(
+            `UPDATE users
+             SET
+                email_verified = 1,
+                email_verification_token_hash = NULL,
+                email_verification_expires_at = NULL
+             WHERE
+                id = ?
+                AND email_verified = 0
+                AND email_verification_expires_at > NOW()`,
+            [userId]
+        );
+
+        return result.affectedRows > 0;
+    }
+
+    // ============================================================
+    // ACTUALIZAR USUARIO
+    // ============================================================
+
+    static async updateUser(
+        id,
+        {
+            first_name,
+            last_name,
+            email,
+            phone,
+            password
+        }
+    ) {
+        let sql = `
+            UPDATE users
+            SET
+                first_name = ?,
+                last_name = ?,
+                email = ?,
+                phone = ?,
+                updated_at = NOW()
         `;
 
-        params.push(password);
+        const params = [
+            first_name,
+            last_name,
+            email,
+            phone
+        ];
+
+        if (password) {
+            sql += `,
+                password = ?
+            `;
+
+            params.push(password);
+        }
+
+        sql += `
+            WHERE id = ?
+        `;
+
+        params.push(id);
+
+        await pool.query(sql, params);
+
+        return this.findById(id);
     }
-
-    sql += `
-        WHERE id = ?
-    `;
-
-    params.push(id);
-
-    await pool.query(sql, params);
-
-    return this.findById(id);
-
-}
-
 
     // ============================================================
     // BUSCAR USUARIOS POR NOMBRE
     // ============================================================
 
     static async searchByName(search) {
-
         const searchTerm = `%${search}%`;
 
         const [rows] = await pool.query(
@@ -229,6 +275,7 @@ static async updateUser(
                 role,
                 profile_image,
                 is_active,
+                email_verified,
                 created_at,
                 updated_at
             FROM users
@@ -247,23 +294,17 @@ static async updateUser(
         );
 
         return rows;
-
     }
-
 
     // ============================================================
     // PAGINACIÓN
     // ============================================================
 
     static async paginate(page = 1, limit = 10) {
-
         page = Math.max(1, parseInt(page) || 1);
         limit = Math.max(1, parseInt(limit) || 10);
 
         const offset = (page - 1) * limit;
-
-
-        // Total de usuarios
 
         const [countRows] = await pool.query(
             `SELECT COUNT(*) AS total
@@ -271,9 +312,6 @@ static async updateUser(
         );
 
         const totalUsers = countRows[0].total;
-
-
-        // Usuarios de la página actual
 
         const [rows] = await pool.query(
             `SELECT
@@ -285,6 +323,7 @@ static async updateUser(
                 role,
                 profile_image,
                 is_active,
+                email_verified,
                 created_at,
                 updated_at
             FROM users
@@ -293,42 +332,25 @@ static async updateUser(
             [limit, offset]
         );
 
-
-        const totalPages =
-            Math.ceil(totalUsers / limit);
-
+        const totalPages = Math.ceil(totalUsers / limit);
 
         return {
-
             users: rows,
-
             pagination: {
-
                 currentPage: page,
-
                 totalPages,
-
                 totalUsers,
-
-                hasNextPage:
-                    page < totalPages,
-
-                hasPrevPage:
-                    page > 1
-
+                hasNextPage: page < totalPages,
+                hasPrevPage: page > 1
             }
-
         };
-
     }
-
 
     // ============================================================
     // ELIMINAR USUARIO
     // ============================================================
 
     static async delete(id) {
-
         const [result] = await pool.query(
             `DELETE FROM users
              WHERE id = ?`,
@@ -336,26 +358,20 @@ static async updateUser(
         );
 
         return result.affectedRows > 0;
-
     }
-
 
     // ============================================================
     // CONTAR USUARIOS
     // ============================================================
 
     static async count() {
-
         const [rows] = await pool.query(
             `SELECT COUNT(*) AS total
              FROM users`
         );
 
         return rows[0].total;
-
     }
-
 }
-
 
 module.exports = User;

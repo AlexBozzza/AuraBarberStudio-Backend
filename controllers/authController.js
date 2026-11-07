@@ -1,24 +1,42 @@
+
 /**
  * Controlador de Autenticación
- * @description Maneja las operaciones de registro, login y autenticación
+ * Maneja registro, login y verificación de correo
  */
 
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const User = require('../models/User');
 const { validationResult } = require('express-validator');
+const { sendEmail } = require('../services/emailService');
 
-/**
- * Clase que maneja las operaciones de autenticación
- */
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://aura-barber-studio-frontend.vercel.app';
+const VERIFICATION_HOURS = 24;
+
+// Escapar caracteres especiales para evitar problemas en el HTML
+const escapeHtml = (value) => {
+    return String(value || '').replace(/[&<>"']/g, (character) => {
+        const entities = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        };
+
+        return entities[character];
+    });
+};
+
 class AuthController {
 
-    /**
-     * Registra un nuevo usuario
-     */
+    // ============================================================
+    // REGISTRAR USUARIO
+    // ============================================================
+
     static async register(req, res) {
         try {
-            // Verificar errores de validación
             const errors = validationResult(req);
 
             if (!errors.isEmpty()) {
@@ -37,7 +55,6 @@ class AuthController {
                 password
             } = req.body;
 
-            // Verificar si el email ya existe
             const existingUser = await User.findByEmail(email);
 
             if (existingUser) {
@@ -47,15 +64,8 @@ class AuthController {
                 });
             }
 
-            // Hashear la contraseña
-            const saltRounds = 12;
+            const hashedPassword = await bcrypt.hash(password, 12);
 
-            const hashedPassword = await bcrypt.hash(
-                password,
-                saltRounds
-            );
-
-            // Crear el usuario
             const newUser = await User.create({
                 first_name,
                 last_name,
@@ -64,50 +74,245 @@ class AuthController {
                 password: hashedPassword
             });
 
-            // Generar JWT token
-            const token = jwt.sign(
-                {
-                    userId: newUser.id,
-                    email: newUser.email
-                },
-                process.env.JWT_SECRET || 'default_secret_key',
-                {
-                    expiresIn:
-                        process.env.JWT_EXPIRES_IN || '24h'
-                }
+            // Generar token seguro
+            const verificationToken = crypto.randomBytes(32).toString('hex');
+
+            const tokenHash = crypto
+                .createHash('sha256')
+                .update(verificationToken)
+                .digest('hex');
+
+            const expiresAt = new Date(
+                Date.now() + VERIFICATION_HOURS * 60 * 60 * 1000
             );
 
-            res.status(201).json({
+            await User.saveEmailVerificationToken(
+                newUser.id,
+                tokenHash,
+                expiresAt
+            );
+
+            const verificationUrl =
+                `${FRONTEND_URL}/verify-email?token=${verificationToken}`;
+
+            const safeFirstName = escapeHtml(newUser.first_name);
+
+            const html = `
+                <div style="font-family: Arial, sans-serif; background-color: #111111; padding: 40px 20px;">
+                    <div style="max-width: 550px; margin: auto; background-color: #202020; padding: 35px; border-radius: 12px; color: #ffffff;">
+                        <h1 style="color: #B8860B; text-align: center;">AURA BARBER STUDIO</h1>
+                        <h2 style="text-align: center;">Confirma tu correo electrónico</h2>
+                        <p>Hola ${safeFirstName},</p>
+                        <p>Gracias por registrarte en Aura Barber Studio. Para activar tu cuenta, confirma que esta dirección de correo te pertenece.</p>
+                        <div style="text-align: center; margin: 35px 0;">
+                            <a href="${verificationUrl}" style="background-color: #B8860B; color: #ffffff; padding: 15px 25px; text-decoration: none; border-radius: 8px; font-weight: bold;">
+                                VERIFICAR MI CORREO
+                            </a>
+                        </div>
+                        <p style="color: #bbbbbb; font-size: 14px;">Este enlace vence en 24 horas.</p>
+                        <p style="color: #bbbbbb; font-size: 14px;">Si no creaste esta cuenta, puedes ignorar este mensaje.</p>
+                    </div>
+                </div>
+            `;
+
+            const text = `
+Hola ${newUser.first_name},
+
+Gracias por registrarte en Aura Barber Studio.
+
+Confirma tu correo electrónico utilizando este enlace:
+
+${verificationUrl}
+
+El enlace vence en 24 horas.
+
+Si no creaste esta cuenta, ignora este mensaje.
+            `;
+
+            try {
+                await sendEmail({
+                    to: email,
+                    subject: 'Confirma tu correo - Aura Barber Studio',
+                    text,
+                    html
+                });
+            } catch (emailError) {
+                console.error('Error enviando verificación:', emailError);
+
+                return res.status(201).json({
+                    success: true,
+                    emailSent: false,
+                    message: 'Tu cuenta fue creada, pero no pudimos enviar el correo. Puedes solicitar otro enlace desde la pantalla de verificación.',
+                    data: {
+                        email
+                    }
+                });
+            }
+
+            return res.status(201).json({
                 success: true,
-                message: 'Usuario registrado correctamente',
+                emailSent: true,
+                message: 'Cuenta creada. Revisa tu correo para verificar tu dirección antes de iniciar sesión.',
                 data: {
-                    user: newUser,
-                    token,
-                    expiresIn:
-                        process.env.JWT_EXPIRES_IN || '24h'
+                    email
                 }
             });
 
         } catch (error) {
-
             console.error('Error en register:', error);
 
-            res.status(500).json({
+            return res.status(500).json({
                 success: false,
-                message: 'Error interno del servidor',
-                error: error.message
+                message: 'Error interno del servidor'
             });
         }
     }
 
+    // ============================================================
+    // VERIFICAR CORREO ELECTRÓNICO
+    // ============================================================
 
-    /**
-     * Autentica un usuario (login)
-     */
+    static async verifyEmail(req, res) {
+        try {
+            const { token } = req.body;
+
+            if (!token || typeof token !== 'string') {
+                return res.status(400).json({
+                    success: false,
+                    message: 'El token de verificación es obligatorio'
+                });
+            }
+
+            const tokenHash = crypto
+                .createHash('sha256')
+                .update(token)
+                .digest('hex');
+
+            const user = await User.findByEmailVerificationToken(tokenHash);
+
+            if (!user) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'El enlace es inválido, ya fue utilizado o ha expirado. Solicita uno nuevo.'
+                });
+            }
+
+            const verified = await User.verifyEmail(user.id);
+
+            if (!verified) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'No fue posible verificar el correo. Solicita un nuevo enlace.'
+                });
+            }
+
+            return res.status(200).json({
+                success: true,
+                message: 'Tu correo electrónico fue verificado correctamente. Ya puedes iniciar sesión.'
+            });
+
+        } catch (error) {
+            console.error('Error en verifyEmail:', error);
+
+            return res.status(500).json({
+                success: false,
+                message: 'Error interno del servidor'
+            });
+        }
+    }
+
+    // ============================================================
+    // REENVIAR CORREO DE VERIFICACIÓN
+    // ============================================================
+
+    static async resendVerification(req, res) {
+        try {
+            const { email } = req.body;
+
+            if (!email || typeof email !== 'string') {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Debes proporcionar un correo electrónico válido'
+                });
+            }
+
+            const user = await User.findByEmail(email);
+
+            // Respuesta genérica para no revelar qué correos están registrados
+            if (!user || user.email_verified) {
+                return res.status(200).json({
+                    success: true,
+                    message: 'Si la cuenta existe y necesita verificación, recibirás un correo con las instrucciones.'
+                });
+            }
+
+            const verificationToken = crypto.randomBytes(32).toString('hex');
+
+            const tokenHash = crypto
+                .createHash('sha256')
+                .update(verificationToken)
+                .digest('hex');
+
+            const expiresAt = new Date(
+                Date.now() + VERIFICATION_HOURS * 60 * 60 * 1000
+            );
+
+            await User.saveEmailVerificationToken(
+                user.id,
+                tokenHash,
+                expiresAt
+            );
+
+            const verificationUrl =
+                `${FRONTEND_URL}/verify-email?token=${verificationToken}`;
+
+             const safeFirstName = escapeHtml(user.first_name);
+
+            const html = `
+                <div style="font-family: Arial, sans-serif; background-color: #111111; padding: 40px 20px;">
+                    <div style="max-width: 550px; margin: auto; background-color: #202020; padding: 35px; border-radius: 12px; color: #ffffff;">
+                        <h1 style="color: #B8860B; text-align: center;">AURA BARBER STUDIO</h1>
+                        <h2 style="text-align: center;">Verifica tu correo electrónico</h2>
+                        <p>Hola ${safeFirstName},</p>
+                        <p>Solicitaste un nuevo enlace para verificar tu cuenta.</p>
+                        <div style="text-align: center; margin: 35px 0;">
+                            <a href="${verificationUrl}" style="background-color: #B8860B; color: #ffffff; padding: 15px 25px; text-decoration: none; border-radius: 8px; font-weight: bold;">
+                                VERIFICAR MI CORREO
+                            </a>
+                        </div>
+                        <p style="color: #bbbbbb; font-size: 14px;">Este enlace vence en 24 horas.</p>
+                    </div>
+                </div>
+            `;
+
+            await sendEmail({
+                to: email,
+                subject: 'Nuevo enlace de verificación - Aura Barber Studio',
+                text: `Hola ${user.first_name}, verifica tu correo mediante este enlace: ${verificationUrl}. El enlace vence en 24 horas.`,
+                html
+            });
+
+            return res.status(200).json({
+                success: true,
+                message: 'Si la cuenta existe y necesita verificación, recibirás un correo con las instrucciones.'
+            });
+
+        } catch (error) {
+            console.error('Error en resendVerification:', error);
+
+            return res.status(500).json({
+                success: false,
+                message: 'No fue posible enviar el correo. Inténtalo nuevamente.'
+            });
+        }
+    }
+
+    // ============================================================
+    // LOGIN
+    // ============================================================
+
     static async login(req, res) {
         try {
-
-            // Verificar errores de validación
             const errors = validationResult(req);
 
             if (!errors.isEmpty()) {
@@ -120,9 +325,7 @@ class AuthController {
 
             const { email, password } = req.body;
 
-            // Buscar usuario por email con contraseña
-            const user =
-                await User.findByEmailWithPassword(email);
+            const user = await User.findByEmailWithPassword(email);
 
             if (!user) {
                 return res.status(401).json({
@@ -131,7 +334,6 @@ class AuthController {
                 });
             }
 
-            // Comprobar si la cuenta está activa
             if (!user.is_active) {
                 return res.status(403).json({
                     success: false,
@@ -139,12 +341,10 @@ class AuthController {
                 });
             }
 
-            // Verificar contraseña
-            const isPasswordValid =
-                await bcrypt.compare(
-                    password,
-                    user.password
-                );
+            const isPasswordValid = await bcrypt.compare(
+                password,
+                user.password
+            );
 
             if (!isPasswordValid) {
                 return res.status(401).json({
@@ -153,7 +353,15 @@ class AuthController {
                 });
             }
 
-            // Generar JWT
+            // Comprobar verificación después de validar la contraseña
+            if (!user.email_verified) {
+                return res.status(403).json({
+                    success: false,
+                    requiresVerification: true,
+                    message: 'Debes verificar tu correo electrónico antes de iniciar sesión.'
+                });
+            }
+
             const token = jwt.sign(
                 {
                     userId: user.id,
@@ -162,46 +370,41 @@ class AuthController {
                 },
                 process.env.JWT_SECRET || 'default_secret_key',
                 {
-                    expiresIn:
-                        process.env.JWT_EXPIRES_IN || '24h'
+                    expiresIn: process.env.JWT_EXPIRES_IN || '24h'
                 }
             );
 
-            // Nunca enviar contraseña al frontend
             delete user.password;
+            delete user.email_verification_token_hash;
+            delete user.email_verification_expires_at;
 
-            res.status(200).json({
+            return res.status(200).json({
                 success: true,
                 message: 'Login exitoso',
                 data: {
                     user,
                     token,
-                    expiresIn:
-                        process.env.JWT_EXPIRES_IN || '24h'
+                    expiresIn: process.env.JWT_EXPIRES_IN || '24h'
                 }
             });
 
         } catch (error) {
-
             console.error('Error en login:', error);
 
-            res.status(500).json({
+            return res.status(500).json({
                 success: false,
-                message: 'Error interno del servidor',
-                error: error.message
+                message: 'Error interno del servidor'
             });
         }
     }
 
+    // ============================================================
+    // OBTENER PERFIL
+    // ============================================================
 
-    /**
-     * Obtiene el perfil del usuario autenticado
-     */
     static async getProfile(req, res) {
         try {
-
             const userId = req.user.userId;
-
             const user = await User.findById(userId);
 
             if (!user) {
@@ -218,25 +421,21 @@ class AuthController {
             });
 
         } catch (error) {
-
             console.error('Error en getProfile:', error);
 
             res.status(500).json({
                 success: false,
-                message: 'Error interno del servidor',
-                error: error.message
+                message: 'Error interno del servidor'
             });
         }
     }
 
+    // ============================================================
+    // ACTUALIZAR PERFIL
+    // ============================================================
 
-    /**
-     * Actualiza el perfil del usuario autenticado
-     */
     static async updateProfile(req, res) {
         try {
-
-            // Verificar errores de validación
             const errors = validationResult(req);
 
             if (!errors.isEmpty()) {
@@ -258,11 +457,9 @@ class AuthController {
                 newPassword
             } = req.body;
 
-            // Obtener usuario con contraseña
-            const existingUser =
-                await User.findByEmailWithPassword(
-                    req.user.email
-                );
+            const existingUser = await User.findByEmailWithPassword(
+                req.user.email
+            );
 
             if (!existingUser) {
                 return res.status(404).json({
@@ -278,77 +475,53 @@ class AuthController {
                 phone
             };
 
-            // Si se desea cambiar contraseña
             if (newPassword) {
-
                 if (!currentPassword) {
                     return res.status(400).json({
                         success: false,
-                        message:
-                            'La contraseña actual es requerida para cambiar la contraseña'
+                        message: 'La contraseña actual es requerida para cambiar la contraseña'
                     });
                 }
 
-                const isCurrentPasswordValid =
-                    await bcrypt.compare(
-                        currentPassword,
-                        existingUser.password
-                    );
+                const isCurrentPasswordValid = await bcrypt.compare(
+                    currentPassword,
+                    existingUser.password
+                );
 
                 if (!isCurrentPasswordValid) {
                     return res.status(401).json({
                         success: false,
-                        message:
-                            'Contraseña actual incorrecta'
+                        message: 'Contraseña actual incorrecta'
                     });
                 }
 
-                const saltRounds = 12;
-
-                updateData.password =
-                    await bcrypt.hash(
-                        newPassword,
-                        saltRounds
-                    );
+                updateData.password = await bcrypt.hash(newPassword, 12);
             }
 
-            // Actualizar usuario
-            const updatedUser =
-                await User.updateUser(
-                    userId,
-                    updateData
-                );
+            const updatedUser = await User.updateUser(userId, updateData);
 
             res.status(200).json({
                 success: true,
-                message:
-                    'Perfil actualizado correctamente',
+                message: 'Perfil actualizado correctamente',
                 data: updatedUser
             });
 
         } catch (error) {
-
-            console.error(
-                '❌ Error en updateProfile:',
-                error
-            );
+            console.error('Error en updateProfile:', error);
 
             res.status(500).json({
                 success: false,
-                message:
-                    'Error interno del servidor',
-                error: error.message
+                message: 'Error interno del servidor'
             });
         }
     }
 
+    // ============================================================
+    // RENOVAR TOKEN JWT
+    // ============================================================
 
-    /**
-     * Renueva el token JWT
-     */
     static async refreshToken(req, res) {
         try {
-
             const userId = req.user.userId;
             const email = req.user.email;
             const role = req.user.role;
@@ -361,8 +534,7 @@ class AuthController {
                 },
                 process.env.JWT_SECRET || 'default_secret_key',
                 {
-                    expiresIn:
-                        process.env.JWT_EXPIRES_IN || '24h'
+                    expiresIn: process.env.JWT_EXPIRES_IN || '24h'
                 }
             );
 
@@ -371,55 +543,40 @@ class AuthController {
                 message: 'Token renovado correctamente',
                 data: {
                     token: newToken,
-                    expiresIn:
-                        process.env.JWT_EXPIRES_IN || '24h'
+                    expiresIn: process.env.JWT_EXPIRES_IN || '24h'
                 }
             });
 
         } catch (error) {
-
-            console.error(
-                'Error en refreshToken:',
-                error
-            );
+            console.error('Error en refreshToken:', error);
 
             res.status(500).json({
                 success: false,
-                message:
-                    'Error interno del servidor',
-                error: error.message
+                message: 'Error interno del servidor'
             });
         }
     }
 
+    // ============================================================
+    // LOGOUT
+    // ============================================================
 
-    /**
-     * Logout
-     */
     static async logout(req, res) {
         try {
-
             res.status(200).json({
                 success: true,
                 message: 'Logout exitoso',
                 data: {
-                    message:
-                        'Token invalidado. Elimina el token del cliente.'
+                    message: 'Token invalidado. Elimina el token del cliente.'
                 }
             });
 
         } catch (error) {
-
-            console.error(
-                'Error en logout:',
-                error
-            );
+            console.error('Error en logout:', error);
 
             res.status(500).json({
                 success: false,
-                message:
-                    'Error interno del servidor',
-                error: error.message
+                message: 'Error interno del servidor'
             });
         }
     }

@@ -1,13 +1,12 @@
 /**
  * Rutas de Autenticación
- * Maneja registro, login, perfil y logout
+ * Maneja registro, login, verificación, perfil y logout
  */
 
 const express = require('express');
 const router = express.Router();
 
 const { authenticateToken } = require('../middleware/auth');
-
 const AuthController = require('../controllers/authController');
 
 const {
@@ -16,32 +15,58 @@ const {
     validateProfileUpdate
 } = require('../middleware/validation');
 
+// ============================================================
+// REGISTRO
+// ============================================================
 
-// 📌 Registro
 router.post(
     '/register',
     validateRegister,
     AuthController.register
 );
 
+// ============================================================
+// VERIFICAR CORREO ELECTRÓNICO
+// ============================================================
 
-// 📌 Login
+router.post(
+    '/verify-email',
+    AuthController.verifyEmail
+);
+
+// ============================================================
+// REENVIAR CORREO DE VERIFICACIÓN
+// ============================================================
+
+router.post(
+    '/resend-verification',
+    AuthController.resendVerification
+);
+
+// ============================================================
+// LOGIN
+// ============================================================
+
 router.post(
     '/login',
     validateLogin,
     AuthController.login
 );
 
+// ============================================================
+// OBTENER PERFIL
+// ============================================================
 
-// 📌 Obtener perfil
 router.get(
     '/profile',
     authenticateToken,
     AuthController.getProfile
 );
 
+// ============================================================
+// ACTUALIZAR PERFIL
+// ============================================================
 
-// 📌 Actualizar perfil
 router.put(
     '/profile',
     validateProfileUpdate,
@@ -49,21 +74,24 @@ router.put(
     AuthController.updateProfile
 );
 
+// ============================================================
+// REFRESH TOKEN
+// ============================================================
 
-// 📌 Refresh token
 router.post(
     '/refresh',
     authenticateToken,
     AuthController.refreshToken
 );
 
+// ============================================================
+// LOGOUT
+// ============================================================
 
-// 📌 Logout
 router.post(
     '/logout',
     authenticateToken,
     AuthController.logout
 );
-
 
 module.exports = router;
