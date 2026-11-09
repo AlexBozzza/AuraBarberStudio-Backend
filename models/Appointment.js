@@ -420,6 +420,19 @@ static async rescheduleByUser(id, user_id, currentDate, currentTime) {
     return rows;
   }
 
+  // ==========================================================
+  // GUARDAR ID DEL EVENTO DE GOOGLE CALENDAR
+  // ==========================================================
+  static async updateGoogleCalendarEventId(id, eventId) {
+    await pool.execute(
+      `UPDATE appointments
+       SET google_calendar_event_id = ?
+       WHERE id = ?`,
+      [eventId, id]
+    );
+
+    return this.findById(id);
+  }
 
   // ==========================================================
   // ELIMINAR CITA

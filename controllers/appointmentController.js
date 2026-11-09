@@ -4,6 +4,12 @@
 
 const Appointment = require("../models/Appointment");
 
+const {
+  createCalendarEvent,
+  updateCalendarEvent,
+  deleteCalendarEvent,
+} = require("../services/googleCalendarService");
+
 
 class AppointmentController {
 
@@ -106,6 +112,30 @@ class AppointmentController {
           notes
 
         });
+
+        // ==========================================
+// SINCRONIZAR CON GOOGLE CALENDAR
+// ==========================================
+
+try {
+  const eventId = await createCalendarEvent(appointment);
+
+const updatedAppointment =
+  await Appointment.updateGoogleCalendarEventId(
+    appointment.id,
+    eventId
+  );
+
+if (updatedAppointment) {
+  Object.assign(appointment, updatedAppointment);
+}
+
+} catch (calendarError) {
+  console.error(
+    "La cita se creó, pero no se pudo sincronizar con Google Calendar:",
+    calendarError
+  );
+}
 
 
       // ==========================================
@@ -744,7 +774,8 @@ for (const appointment of appointments) {
   }
 
   
-  // ==========================================
+
+// ==========================================
 // CANCELAR CITA DEL CLIENTE AUTENTICADO
 // ==========================================
 
@@ -815,6 +846,28 @@ static async cancelMyAppointment(req, res) {
       });
     }
 
+    // ==========================================
+    // ELIMINAR EVENTO DE GOOGLE CALENDAR
+    // ==========================================
+
+    try {
+      await deleteCalendarEvent(
+        result.appointment.google_calendar_event_id
+      );
+
+      // Limpiar ID del evento en MySQL
+      await Appointment.updateGoogleCalendarEventId(
+        appointmentId,
+        null
+      );
+
+    } catch (calendarError) {
+      console.error(
+        "La cita se canceló, pero no se pudo eliminar de Google Calendar:",
+        calendarError
+      );
+    }
+
     return res.status(200).json({
       success: true,
       message: "Tu cita ha sido cancelada correctamente",
@@ -831,7 +884,10 @@ static async cancelMyAppointment(req, res) {
     });
 
   }
+
 }
+
+
 
 // ==========================================
 // REAGENDAR CITA DEL CLIENTE AUTENTICADO
@@ -906,6 +962,28 @@ static async rescheduleMyAppointment(req, res) {
       });
     }
 
+    // ==========================================
+    // ELIMINAR EVENTO ANTERIOR DE GOOGLE CALENDAR
+    // ==========================================
+
+    try {
+      await deleteCalendarEvent(
+        result.appointment.google_calendar_event_id
+      );
+
+      // Limpiar ID del evento en MySQL
+      await Appointment.updateGoogleCalendarEventId(
+        appointmentId,
+        null
+      );
+
+    } catch (calendarError) {
+      console.error(
+        "La cita se reagendó, pero no se pudo eliminar el evento anterior de Google Calendar:",
+        calendarError
+      );
+    }
+
     return res.status(200).json({
       success: true,
       message: "Tu cita está lista para reagendar. Selecciona una nueva fecha y horario.",
@@ -924,6 +1002,7 @@ static async rescheduleMyAppointment(req, res) {
   }
 
 }
+
 
 
   // ==========================================
@@ -949,6 +1028,35 @@ static async rescheduleMyAppointment(req, res) {
           id,
           status
         );
+
+// ==========================================
+// SINCRONIZAR ESTADO CON GOOGLE CALENDAR
+// ==========================================
+
+try {
+  const eventId = appointment?.google_calendar_event_id;
+
+  if (eventId) {
+    if (["CANCELLED", "RESCHEDULED"].includes(
+      String(status).toUpperCase()
+    )) {
+      await deleteCalendarEvent(eventId);
+
+      await Appointment.updateGoogleCalendarEventId(
+        id,
+        null
+      );
+
+    } else {
+      await updateCalendarEvent(eventId, appointment);
+    }
+  }
+} catch (calendarError) {
+  console.error(
+    "El estado se actualizó, pero falló la sincronización con Google Calendar:",
+    calendarError
+  );
+}
 
 
       res.json({
@@ -990,9 +1098,36 @@ static async rescheduleMyAppointment(req, res) {
 
     try {
 
-      await Appointment.delete(
-        req.params.id
-      );
+  // ==========================================
+// OBTENER CITA ANTES DE ELIMINARLA
+// ==========================================
+
+const appointment = await Appointment.findById(
+  req.params.id
+);
+
+// ==========================================
+// ELIMINAR EVENTO DE GOOGLE CALENDAR
+// ==========================================
+
+if (appointment?.google_calendar_event_id) {
+  try {
+    await deleteCalendarEvent(
+      appointment.google_calendar_event_id
+    );
+  } catch (calendarError) {
+    console.error(
+      "No se pudo eliminar el evento de Google Calendar:",
+      calendarError
+    );
+  }
+}
+
+// ==========================================
+// ELIMINAR CITA DE MYSQL
+// ==========================================
+
+await Appointment.delete(req.params.id);
 
 
       res.json({
