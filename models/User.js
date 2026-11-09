@@ -209,6 +209,65 @@ class User {
     }
 
     // ============================================================
+    // GUARDAR TOKEN DE RECUPERACIÓN DE CONTRASEÑA
+    // ============================================================
+
+    static async savePasswordResetToken(userId, tokenHash, expiresAt) {
+        await pool.query(
+            `UPDATE users
+             SET
+                password_reset_token_hash = ?,
+                password_reset_expires_at = ?
+             WHERE id = ?`,
+            [tokenHash, expiresAt, userId]
+        );
+    }
+
+    // ============================================================
+    // BUSCAR USUARIO POR TOKEN DE RECUPERACIÓN
+    // ============================================================
+
+    static async findByPasswordResetToken(tokenHash) {
+        const [rows] = await pool.query(
+            `SELECT
+                id,
+                first_name,
+                last_name,
+                email,
+                password_reset_expires_at
+             FROM users
+             WHERE
+                password_reset_token_hash = ?
+                AND password_reset_expires_at > NOW()`,
+            [tokenHash]
+        );
+
+        return rows[0] || null;
+    }
+
+    // ============================================================
+    // ACTUALIZAR CONTRASEÑA Y ELIMINAR TOKEN
+    // ============================================================
+
+    static async resetPassword(userId, tokenHash, hashedPassword) {
+        const [result] = await pool.query(
+            `UPDATE users
+             SET
+                password = ?,
+                password_reset_token_hash = NULL,
+                password_reset_expires_at = NULL,
+                updated_at = NOW()
+             WHERE
+                id = ?
+                AND password_reset_token_hash = ?
+                AND password_reset_expires_at > NOW()`,
+            [hashedPassword, userId, tokenHash]
+        );
+
+        return result.affectedRows > 0;
+    }
+
+    // ============================================================
     // ACTUALIZAR USUARIO
     // ============================================================
 

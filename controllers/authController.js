@@ -13,6 +13,7 @@ const { sendEmail } = require('../services/emailService');
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://aura-barber-studio-frontend.vercel.app';
 const VERIFICATION_HOURS = 24;
+const PASSWORD_RESET_MINUTES = 30;
 
 // Escapar caracteres especiales para evitar problemas en el HTML
 const escapeHtml = (value) => {
@@ -306,6 +307,198 @@ Si no creaste esta cuenta, ignora este mensaje.
             });
         }
     }
+
+
+    // ============================================================
+    // SOLICITAR RECUPERACIÓN DE CONTRASEÑA
+    // ============================================================
+
+    static async forgotPassword(req, res) {
+        try {
+            const { email } = req.body;
+
+            if (!email || typeof email !== 'string') {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Debes proporcionar un correo electrónico válido'
+                });
+            }
+
+            const user = await User.findByEmail(email);
+
+            // Respuesta genérica para no revelar cuentas registradas
+            if (!user || !user.email_verified || !user.is_active) {
+                return res.status(200).json({
+                    success: true,
+                    message: 'Si existe una cuenta asociada a ese correo, recibirás instrucciones para recuperar tu contraseña.'
+                });
+            }
+
+            // Generar token seguro
+            const resetToken = crypto.randomBytes(32).toString('hex');
+
+            const tokenHash = crypto
+                .createHash('sha256')
+                .update(resetToken)
+                .digest('hex');
+
+            const expiresAt = new Date(
+                Date.now() + PASSWORD_RESET_MINUTES * 60 * 1000
+            );
+
+            await User.savePasswordResetToken(
+                user.id,
+                tokenHash,
+                expiresAt
+            );
+
+            const resetUrl =
+                `${FRONTEND_URL}/reset-password?token=${resetToken}`;
+
+            const safeFirstName = escapeHtml(user.first_name);
+
+            const html = `
+                <div style="font-family: Arial, sans-serif; background-color: #111111; padding: 40px 20px;">
+                    <div style="max-width: 550px; margin: auto; background-color: #202020; padding: 35px; border-radius: 12px; color: #ffffff;">
+                        <h1 style="color: #B8860B; text-align: center;">AURA BARBER STUDIO</h1>
+                        <h2 style="text-align: center;">Recuperación de contraseña</h2>
+                        <p>Hola ${safeFirstName},</p>
+                        <p>Recibimos una solicitud para cambiar la contraseña de tu cuenta.</p>
+                        <p>Haz clic en el siguiente botón para establecer una nueva contraseña:</p>
+                        <div style="text-align: center; margin: 35px 0;">
+                            <a href="${resetUrl}" style="background-color: #B8860B; color: #ffffff; padding: 15px 25px; text-decoration: none; border-radius: 8px; font-weight: bold;">
+                                RESTABLECER CONTRASEÑA
+                            </a>
+                        </div>
+                        <p style="color: #bbbbbb; font-size: 14px;">Este enlace vence en 30 minutos y solo puede utilizarse una vez.</p>
+                        <p style="color: #bbbbbb; font-size: 14px;">Si no solicitaste este cambio, puedes ignorar este mensaje. Tu contraseña actual seguirá siendo la misma.</p>
+                    </div>
+                </div>
+            `;
+
+            const text = `
+Hola ${user.first_name},
+
+Recibimos una solicitud para cambiar la contraseña de tu cuenta de Aura Barber Studio.
+
+Utiliza este enlace para establecer una nueva contraseña:
+
+${resetUrl}
+
+Este enlace vence en 30 minutos y solo puede utilizarse una vez.
+
+Si no solicitaste este cambio, ignora este mensaje.
+            `;
+
+            await sendEmail({
+                to: email,
+                subject: 'Recuperación de contraseña - Aura Barber Studio',
+                text,
+                html
+            });
+
+            return res.status(200).json({
+                success: true,
+                message: 'Si existe una cuenta asociada a ese correo, recibirás instrucciones para recuperar tu contraseña.'
+            });
+
+        } catch (error) {
+            console.error('Error en forgotPassword:', error);
+
+            return res.status(500).json({
+                success: false,
+                message: 'No fue posible procesar la solicitud. Inténtalo nuevamente.'
+            });
+        }
+    }
+
+
+    // ============================================================
+    // RESTABLECER CONTRASEÑA
+    // ============================================================
+
+    static async resetPassword(req, res) {
+        try {
+            const { token, password } = req.body;
+
+            if (
+                !token ||
+                typeof token !== 'string' ||
+                !password ||
+                typeof password !== 'string'
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'El token y la nueva contraseña son obligatorios'
+                });
+            }
+
+// Validar longitud de contraseña
+if (password.length < 8 || password.length > 128) {
+    return res.status(400).json({
+        success: false,
+        message: 'La contraseña debe tener entre 8 y 128 caracteres'
+    });
+}
+
+// Validar complejidad de contraseña
+const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!*?&])[A-Za-z\d@$!*?&]+$/;
+
+if (!passwordRegex.test(password)) {
+    return res.status(400).json({
+        success: false,
+        message: 'La contraseña debe contener al menos una minúscula, una mayúscula, un número y un carácter especial (@$!*?&)'
+    });
+}
+            // Calcular hash del token recibido
+            const tokenHash = crypto
+                .createHash('sha256')
+                .update(token)
+                .digest('hex');
+
+            // Buscar usuario con token vigente
+            const user = await User.findByPasswordResetToken(tokenHash);
+
+            if (!user) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'El enlace es inválido, ya fue utilizado o ha expirado. Solicita uno nuevo.'
+                });
+            }
+
+            // Encriptar nueva contraseña
+            const hashedPassword = await bcrypt.hash(password, 12);
+
+            // Actualizar contraseña y eliminar token
+            const updated = await User.resetPassword(
+                user.id,
+                tokenHash,
+                hashedPassword
+            );
+
+            if (!updated) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'El enlace es inválido, ya fue utilizado o ha expirado. Solicita uno nuevo.'
+                });
+            }
+
+            return res.status(200).json({
+                success: true,
+                message: 'Tu contraseña fue actualizada correctamente. Ya puedes iniciar sesión.'
+            });
+
+        } catch (error) {
+            console.error('Error en resetPassword:', error);
+
+            return res.status(500).json({
+                success: false,
+                message: 'Error interno del servidor'
+            });
+        }
+    }
+
+
 
     // ============================================================
     // LOGIN
