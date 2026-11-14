@@ -643,8 +643,7 @@ if (!passwordRegex.test(password)) {
 
             const {
                 first_name,
-                last_name,
-                email,
+                last_name,                
                 phone,
                 currentPassword,
                 newPassword
@@ -663,8 +662,7 @@ if (!passwordRegex.test(password)) {
 
             const updateData = {
                 first_name,
-                last_name,
-                email,
+                last_name,                
                 phone
             };
 

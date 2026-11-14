@@ -271,51 +271,50 @@ class User {
     // ACTUALIZAR USUARIO
     // ============================================================
 
-    static async updateUser(
-        id,
-        {
-            first_name,
-            last_name,
-            email,
-            phone,
-            password
-        }
-    ) {
-        let sql = `
-            UPDATE users
-            SET
-                first_name = ?,
-                last_name = ?,
-                email = ?,
-                phone = ?,
-                updated_at = NOW()
-        `;
 
-        const params = [
-            first_name,
-            last_name,
-            email,
-            phone
-        ];
-
-        if (password) {
-            sql += `,
-                password = ?
-            `;
-
-            params.push(password);
-        }
-
-        sql += `
-            WHERE id = ?
-        `;
-
-        params.push(id);
-
-        await pool.query(sql, params);
-
-        return this.findById(id);
+static async updateUser(
+    id,
+    {
+        first_name,
+        last_name,
+        phone,
+        password
     }
+) {
+    let sql = `
+        UPDATE users
+        SET
+            first_name = ?,
+            last_name = ?,
+            phone = ?,
+            updated_at = NOW()
+    `;
+
+    const params = [
+        first_name,
+        last_name,
+        phone
+    ];
+
+    if (password) {
+        sql += `,
+            password = ?
+        `;
+
+        params.push(password);
+    }
+
+    sql += `
+        WHERE id = ?
+    `;
+
+    params.push(id);
+
+    await pool.query(sql, params);
+
+    return this.findById(id);
+}
+
 
     // ============================================================
     // BUSCAR USUARIOS POR NOMBRE
