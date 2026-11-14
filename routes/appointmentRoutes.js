@@ -94,6 +94,15 @@ router.patch(
   AppointmentController.updateStatus
 );
 
+// ==========================================
+// REGISTRAR MÉTODO DE PAGO
+// ==========================================
+
+router.patch(
+  "/:id/payment-method",
+  AppointmentController.updatePaymentMethod
+);
+
 
 // ==========================================
 // ELIMINAR CITA

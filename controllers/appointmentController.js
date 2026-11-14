@@ -1004,6 +1004,88 @@ static async rescheduleMyAppointment(req, res) {
 }
 
 
+// ==========================================
+// ACTUALIZAR MÉTODO DE PAGO
+// ==========================================
+
+static async updatePaymentMethod(req, res) {
+
+  try {
+
+    const { id } = req.params;
+    const { payment_method } = req.body;
+
+    // Validar identificador
+    if (!/^\d+$/.test(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Identificador de cita inválido"
+      });
+    }
+
+    // Validar método de pago
+    const allowedMethods = ["SINPE", "EFECTIVO"];
+
+    if (!allowedMethods.includes(payment_method)) {
+      return res.status(400).json({
+        success: false,
+        message: "Método de pago inválido"
+      });
+    }
+
+    // Verificar que la cita exista
+    const appointment = await Appointment.findById(id);
+
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        message: "Cita no encontrada"
+      });
+    }
+
+    // Solo permitir pagos en citas completadas
+    if (appointment.status !== "COMPLETED") {
+      return res.status(409).json({
+        success: false,
+        message: "Solo se puede registrar el pago de una cita completada"
+      });
+    }
+
+    const updatedAppointment =
+      await Appointment.updatePaymentMethod(
+        id,
+        payment_method
+      );
+
+    // Verificar que el pago se haya actualizado
+    if (!updatedAppointment) {
+      return res.status(409).json({
+        success: false,
+        message: "La cita ya no está completada o no se pudo registrar el pago"
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Método de pago registrado correctamente",
+      data: updatedAppointment
+    });
+
+  } catch (error) {
+
+    console.error(
+      "Error actualizando método de pago:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: "Error registrando el método de pago"
+    });
+
+  }
+
+}
 
   // ==========================================
   // CAMBIAR ESTADO

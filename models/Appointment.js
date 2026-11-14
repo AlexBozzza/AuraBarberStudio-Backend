@@ -287,23 +287,52 @@ class Appointment {
   }
 
 
-  // ==========================================================
-  // CAMBIAR ESTADO
-  // ==========================================================
-  static async updateStatus(id, status) {
+// ==========================================================
+// CAMBIAR ESTADO
+// ==========================================================
+static async updateStatus(id, status) {
 
-    await pool.execute(
-      `UPDATE appointments
-      SET status = ?
-      WHERE id = ?`,
-      [
-        status,
-        id
-      ]
-    );
+  await pool.execute(
+    `UPDATE appointments
+     SET
+       status = ?,
+       payment_method = CASE
+         WHEN ? = 'COMPLETED' THEN payment_method
+         ELSE NULL
+       END
+     WHERE id = ?`,
+    [
+      status,
+      status,
+      id
+    ]
+  );
 
-    return this.findById(id);
+  return this.findById(id);
+}
+
+// ==========================================================
+// ACTUALIZAR MÉTODO DE PAGO
+// ==========================================================
+static async updatePaymentMethod(id, payment_method) {
+
+  const [result] = await pool.execute(
+    `UPDATE appointments
+     SET payment_method = ?
+     WHERE id = ?
+     AND status = 'COMPLETED'`,
+    [
+      payment_method,
+      id
+    ]
+  );
+
+  if (result.affectedRows === 0) {
+    return null;
   }
+
+  return this.findById(id);
+}
 
   // ==========================================================
 // CANCELAR CITA POR PARTE DEL CLIENTE
