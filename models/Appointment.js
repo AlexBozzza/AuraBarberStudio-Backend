@@ -144,6 +144,59 @@ class Appointment {
 
 
   // ==========================================================
+  // OBTENER REPORTES DE PAGOS POR RANGO DE FECHAS
+  // ==========================================================
+  static async findPaidAppointmentsByDateRange(start_date, end_date) {
+
+    const [rows] = await pool.execute(
+      `SELECT
+        a.id,
+        a.appointment_date,
+        a.start_time,
+        a.status,
+        a.payment_method,
+
+        -- Cliente
+        u.first_name,
+        u.last_name,
+
+        -- Barbero
+        bu.first_name AS barber_first_name,
+        bu.last_name AS barber_last_name,
+
+        -- Servicio
+        s.name AS service_name,
+        s.price AS service_price
+
+      FROM appointments a
+
+      INNER JOIN users u
+        ON a.user_id = u.id
+
+      INNER JOIN barbers b
+        ON a.barber_id = b.id
+
+      INNER JOIN users bu
+        ON b.user_id = bu.id
+
+      INNER JOIN services s
+        ON a.service_id = s.id
+
+      WHERE a.appointment_date BETWEEN ? AND ?
+        AND a.status = 'COMPLETED'
+        AND a.payment_method IN ('SINPE', 'EFECTIVO')
+
+      ORDER BY
+        a.appointment_date DESC,
+        a.start_time ASC`,
+      [start_date, end_date]
+    );
+
+    return rows;
+  }
+
+
+  // ==========================================================
   // OBTENER CITAS POR FECHA
   // ==========================================================
   static async findByDate(appointment_date) {

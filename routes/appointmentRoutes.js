@@ -32,6 +32,14 @@ router.get(
   AppointmentController.getMyAppointments
 );
 
+// ==========================================
+// OBTENER REPORTES DE PAGOS
+// ==========================================
+
+router.get(
+  "/reports",
+  AppointmentController.getPaymentReports
+);
 
 // ==========================================
 // OBTENER TODAS LAS CITAS

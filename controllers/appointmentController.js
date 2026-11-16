@@ -216,6 +216,88 @@ if (updatedAppointment) {
 
 
   // ==========================================
+  // OBTENER REPORTES DE PAGOS
+  // ==========================================
+
+  static async getPaymentReports(req, res) {
+    try {
+      const { start_date, end_date } = req.query;
+
+      // Validar fechas
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+      if (
+        !dateRegex.test(start_date || "") ||
+        !dateRegex.test(end_date || "")
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Debes proporcionar una fecha inicial y final válidas."
+        });
+      }
+
+      if (start_date > end_date) {
+        return res.status(400).json({
+          success: false,
+          message: "La fecha inicial no puede ser posterior a la fecha final."
+        });
+      }
+
+      const appointments =
+        await Appointment.findPaidAppointmentsByDateRange(
+          start_date,
+          end_date
+        );
+
+      // Calcular totales
+      const totalRevenue = appointments.reduce(
+        (total, appointment) =>
+          total + Number(appointment.service_price || 0),
+        0
+      );
+
+      const totalSinpe = appointments
+        .filter((appointment) => appointment.payment_method === "SINPE")
+        .reduce(
+          (total, appointment) =>
+            total + Number(appointment.service_price || 0),
+          0
+        );
+
+      const totalCash = appointments
+        .filter((appointment) => appointment.payment_method === "EFECTIVO")
+        .reduce(
+          (total, appointment) =>
+            total + Number(appointment.service_price || 0),
+          0
+        );
+
+      return res.json({
+        success: true,
+        data: {
+          appointments,
+          summary: {
+            total_appointments: appointments.length,
+            total_revenue: totalRevenue,
+            total_sinpe: totalSinpe,
+            total_cash: totalCash
+          }
+        }
+      });
+
+    } catch (error) {
+      console.error("Error generando reportes de pagos:", error);
+
+      return res.status(500).json({
+        success: false,
+        message: "Error generando los reportes de pagos."
+      });
+    }
+  }
+
+
+
+  // ==========================================
   // OBTENER CITAS DEL USUARIO AUTENTICADO
   // ==========================================
 
