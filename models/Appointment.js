@@ -142,6 +142,53 @@ class Appointment {
     return rows;
   }
 
+  // ==========================================================
+  // OBTENER CITAS DE UN BARBERO EN UNA FECHA ESPECÍFICA
+  // ==========================================================
+  static async findByBarberAndDate(barber_id, appointment_date) {
+
+    const [rows] = await pool.execute(
+      `SELECT
+        a.*,
+
+        -- Cliente
+        u.first_name,
+        u.last_name,
+
+        -- Barbero
+        b.user_id AS barber_user_id,
+        bu.first_name AS barber_first_name,
+        bu.last_name AS barber_last_name,
+
+        -- Servicio
+        s.name AS service_name,
+        s.duration,
+        s.price
+
+      FROM appointments a
+
+      INNER JOIN users u
+        ON a.user_id = u.id
+
+      INNER JOIN barbers b
+        ON a.barber_id = b.id
+
+      INNER JOIN users bu
+        ON b.user_id = bu.id
+
+      INNER JOIN services s
+        ON a.service_id = s.id
+
+      WHERE a.barber_id = ?
+        AND a.appointment_date = ?
+
+      ORDER BY a.start_time ASC`,
+      [barber_id, appointment_date]
+    );
+
+    return rows;
+  }
+
 
  
   // ==========================================================
@@ -195,7 +242,7 @@ class Appointment {
 
     return rows;
   }
-  
+
 
   // ==========================================================
   // OBTENER HISTORIAL DE CITAS DE UN USUARIO
