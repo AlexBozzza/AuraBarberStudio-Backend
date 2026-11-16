@@ -215,6 +215,7 @@ if (updatedAppointment) {
   }
 
 
+
   // ==========================================
   // OBTENER REPORTES DE PAGOS
   // ==========================================
@@ -243,18 +244,26 @@ if (updatedAppointment) {
         });
       }
 
+      // Obtener citas pagadas del período
       const appointments =
         await Appointment.findPaidAppointmentsByDateRange(
           start_date,
           end_date
         );
 
-      // Calcular totales
+      // ==========================================
+      // CALCULAR INGRESOS TOTALES
+      // ==========================================
+
       const totalRevenue = appointments.reduce(
         (total, appointment) =>
           total + Number(appointment.service_price || 0),
         0
       );
+
+      // ==========================================
+      // TOTAL SINPE
+      // ==========================================
 
       const totalSinpe = appointments
         .filter((appointment) => appointment.payment_method === "SINPE")
@@ -264,6 +273,10 @@ if (updatedAppointment) {
           0
         );
 
+      // ==========================================
+      // TOTAL EFECTIVO
+      // ==========================================
+
       const totalCash = appointments
         .filter((appointment) => appointment.payment_method === "EFECTIVO")
         .reduce(
@@ -271,6 +284,22 @@ if (updatedAppointment) {
             total + Number(appointment.service_price || 0),
           0
         );
+
+      // ==========================================
+      // TOTAL TARJETA
+      // ==========================================
+
+      const totalCard = appointments
+        .filter((appointment) => appointment.payment_method === "TARJETA")
+        .reduce(
+          (total, appointment) =>
+            total + Number(appointment.service_price || 0),
+          0
+        );
+
+      // ==========================================
+      // RESPUESTA
+      // ==========================================
 
       return res.json({
         success: true,
@@ -280,7 +309,8 @@ if (updatedAppointment) {
             total_appointments: appointments.length,
             total_revenue: totalRevenue,
             total_sinpe: totalSinpe,
-            total_cash: totalCash
+            total_cash: totalCash,
+            total_card: totalCard
           }
         }
       });
@@ -1106,7 +1136,7 @@ static async updatePaymentMethod(req, res) {
     }
 
     // Validar método de pago
-    const allowedMethods = ["SINPE", "EFECTIVO"];
+      const allowedMethods = ["SINPE", "EFECTIVO", "TARJETA"];
 
     if (!allowedMethods.includes(payment_method)) {
       return res.status(400).json({

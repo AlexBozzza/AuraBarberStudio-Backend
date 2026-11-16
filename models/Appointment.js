@@ -143,6 +143,7 @@ class Appointment {
   }
 
 
+ 
   // ==========================================================
   // OBTENER REPORTES DE PAGOS POR RANGO DE FECHAS
   // ==========================================================
@@ -184,7 +185,7 @@ class Appointment {
 
       WHERE a.appointment_date BETWEEN ? AND ?
         AND a.status = 'COMPLETED'
-        AND a.payment_method IN ('SINPE', 'EFECTIVO')
+        AND a.payment_method IN ('SINPE', 'EFECTIVO', 'TARJETA')
 
       ORDER BY
         a.appointment_date DESC,
@@ -194,48 +195,7 @@ class Appointment {
 
     return rows;
   }
-
-
-  // ==========================================================
-  // OBTENER CITAS POR FECHA
-  // ==========================================================
-  static async findByDate(appointment_date) {
-
-    const [rows] = await pool.execute(
-      `SELECT *
-      FROM appointments
-      WHERE appointment_date = ?
-      ORDER BY start_time ASC`,
-      [appointment_date]
-    );
-
-    return rows;
-  }
-
-
-  // ==========================================================
-  // OBTENER CITAS DE UN BARBERO EN UNA FECHA
-  // ==========================================================
-  static async findByBarberAndDate(
-    barber_id,
-    appointment_date
-  ) {
-
-    const [rows] = await pool.execute(
-      `SELECT *
-      FROM appointments
-      WHERE barber_id = ?
-      AND appointment_date = ?
-      ORDER BY start_time ASC`,
-      [
-        barber_id,
-        appointment_date
-      ]
-    );
-
-    return rows;
-  }
-
+  
 
   // ==========================================================
   // OBTENER HISTORIAL DE CITAS DE UN USUARIO
